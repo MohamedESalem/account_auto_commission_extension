@@ -29,7 +29,10 @@ class AutoCommissionConfig(models.Model):
         "partner_id",
         string="Commission Agents",
         domain="[('agent', '=', True)]",
-        help="Agents already configured in OCA commission that must be auto-added on new customer invoices.",
+        help=(
+            "Agents already configured in OCA commission that can be auto-added on "
+            "draft quotation/invoice lines."
+        ),
     )
 
     _sql_constraints = [
@@ -102,7 +105,7 @@ class ResConfigSettings(models.TransientModel):
         "res.partner",
         string="Automatic Commission Agents",
         domain="[('agent', '=', True)]",
-        help="Agents added automatically to new customer invoices in this company.",
+        help="Agents allowed for automatic assignment on draft quotation/invoice lines.",
     )
 
     @api.model
@@ -110,7 +113,7 @@ class ResConfigSettings(models.TransientModel):
         """Load selected commission agents from company configuration."""
         res = super().get_values()
         company = self.env.company
-        config = self.env["auto.commission.config"].sudo().get_company_config(company)
+        config = self.env["auto.commission.config"].get_company_config(company)
         res.update(
             auto_commission_agent_ids=[(6, 0, config.commission_agent_ids.ids if config else [])]
         )
@@ -122,7 +125,7 @@ class ResConfigSettings(models.TransientModel):
         if not self.user_has_groups("account.group_account_manager"):
             raise AccessError("Only accounting managers can modify automatic commission settings.")
 
-        config_model = self.env["auto.commission.config"].sudo()
+        config_model = self.env["auto.commission.config"]
         for settings in self:
             company = settings.company_id or self.env.company
             config = config_model.get_company_config(company)

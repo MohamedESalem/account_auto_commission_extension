@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_product_template_form_auto_commission_agents" model="ir.ui.view">
+        <field name="name">product.template.form.auto.commission.agents</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="commission_oca.product_template_form_view_commission"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='commission_free']/.." position="after">
+                <div>
+                    <label for="commission_agent_ids"/>
+                    <field
+                        name="commission_agent_ids"
+                        widget="many2many_tags"
+                        options="{'no_create_edit': True}"
+                    />
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

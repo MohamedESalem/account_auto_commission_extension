@@ -2,7 +2,8 @@
 
 ## Purpose
 
-This module extends Odoo 18 Community to automatically assign predefined OCA commission agents to newly created customer invoices (`account.move` with `move_type = out_invoice`).
+This module extends Odoo 18 Community to automatically assign predefined OCA commission
+agents when draft customer invoice lines are created or updated (`account.move.line`).
 
 It is designed to keep commission assignment consistent, auditable, and company-aware without hardcoding users or percentages.
 
@@ -11,7 +12,7 @@ It is designed to keep commission assignment consistent, auditable, and company-
 1. Place the module folder `account_auto_commission_extension` in your custom addons path.
 2. Ensure dependencies are installed:
    - `account`
-   - `account_commission` (OCA)
+   - `account_commission_oca` (OCA)
 3. Update apps list.
 4. Install **Account Auto Commission Extension**.
 
@@ -20,6 +21,7 @@ It is designed to keep commission assignment consistent, auditable, and company-
 1. Go to **Accounting > Configuration > Settings**.
 2. In **Automatic Commission Assignment**, choose **Automatic Commission Agents**.
 3. Save.
+4. On each product, define **Commission Agents** that are allowed for that product.
 
 Notes:
 - Only records already configured as OCA commission agents are selectable.
@@ -28,14 +30,14 @@ Notes:
 
 ## How Automation Works
 
-- Hook: `account.move.create()` with `@api.model_create_multi`.
-- Scope: only newly created draft customer invoices (`move_type = out_invoice`, `state = draft`).
+- Hook: `account.move.line.create()` and `account.move.line.write()`.
+- Scope: draft customer invoice/refund lines with products (`move_type in ('out_invoice', 'out_refund')`, `state = draft`).
 - Behavior:
-  - Loads company-specific configured agents.
-  - Checks existing commission agent lines on each invoice line.
-  - Adds only missing agent entries.
+  - Loads company-specific configured agents from `auto.commission.config`.
+  - Intersects them with product agents (`product.template.commission_agent_ids`).
+  - Adds only missing agent entries via OCA helper methods.
   - Never duplicates existing agent lines.
-  - Does not overwrite manual commission edits.
+  - Preserves manual commission edits on write operations.
 
 Commission percentages are not hardcoded and are resolved from existing OCA commission configuration attached to each selected agent.
 
@@ -50,7 +52,8 @@ Commission percentages are not hardcoded and are resolved from existing OCA comm
 
 ## Security Notes
 
-- The persistent configuration model is restricted to accounting managers.
+- The persistent configuration model is writable only by accounting managers.
+- Internal accounting users have read-only access for runtime automation.
 - A company rule restricts access to configuration records within allowed companies.
 - No privilege escalation, no global invoice record rules, and no direct SQL are used.
 

@@ -11,7 +11,7 @@
                        groups="account.group_account_manager">
                     <setting id="account_auto_commission_agents"
                              string="Automatic Commission Agents"
-                             help="Automatically add these commission agents on new draft customer invoices.">
+                             help="Automatically add these commission agents on draft quotation/invoice lines when product settings also match.">
                         <field name="auto_commission_agent_ids"
                                widget="many2many_tags"
                                options="{'no_create_edit': True, 'no_open': True}"/>
