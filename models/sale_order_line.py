@@ -6,12 +6,11 @@ from odoo import api, models
 _logger = logging.getLogger(__name__)
 
 
-class AccountMoveLine(models.Model):
-    _inherit = "account.move.line"
+class SaleOrderLine(models.Model):
+    _inherit = "sale.order.line"
 
     @api.depends(
-        "move_id.partner_id",
-        "move_id.move_type",
+        "order_id.partner_id",
         "product_id",
         "product_id.commission_agent_ids",
         "display_type",
@@ -20,7 +19,6 @@ class AccountMoveLine(models.Model):
     )
     def _compute_agent_ids(self):
         super()._compute_agent_ids()
-        # OCA computes from partner agents; enforce product/config intersection afterward.
         self.filtered(lambda line: line.id)._auto_sync_commission_agents(
             strict=False, skip_manual=True
         )
@@ -49,7 +47,7 @@ class AccountMoveLine(models.Model):
         for line, vals in zip(lines, vals_list):
             if self._auto_has_explicit_agent_commands(vals):
                 _logger.debug(
-                    "Skipping auto commission sync on line %s due to explicit non-empty agent commands in create vals.",
+                    "Skipping quotation auto commission sync on line %s due to explicit non-empty agent commands in create vals.",
                     line.id,
                 )
                 continue
@@ -57,7 +55,14 @@ class AccountMoveLine(models.Model):
         return lines
 
     def write(self, vals):
-        tracked_fields = {"product_id", "quantity", "price_unit", "discount", "display_type", "move_id"}
+        tracked_fields = {
+            "product_id",
+            "product_uom_qty",
+            "price_unit",
+            "discount",
+            "display_type",
+            "order_id",
+        }
         should_sync = bool(tracked_fields.intersection(vals))
         has_manual_agent_commands = self._auto_has_explicit_agent_commands(vals)
 
@@ -67,7 +72,7 @@ class AccountMoveLine(models.Model):
             return result
         if has_manual_agent_commands:
             _logger.debug(
-                "Skipping auto commission sync on lines %s due to manual agent_ids write.",
+                "Skipping quotation auto commission sync on lines %s due to manual agent_ids write.",
                 self.ids,
             )
             return result
@@ -77,26 +82,23 @@ class AccountMoveLine(models.Model):
 
     def _auto_is_target_line(self):
         self.ensure_one()
-        if not self.move_id:
-            _logger.debug("Line %s skipped: no move_id.", self.id)
+        if not self.order_id:
+            _logger.debug("Sale line %s skipped: no order_id.", self.id)
             return False
-        if self.move_id.state != "draft":
-            _logger.debug("Line %s skipped: move %s is not draft.", self.id, self.move_id.id)
-            return False
-        if self.move_id.move_type not in ("out_invoice", "out_refund"):
+        if self.order_id.state not in ("draft", "sent"):
             _logger.debug(
-                "Line %s skipped: move %s type %s is not customer invoice/refund.",
+                "Sale line %s skipped: order %s is not quotation state (state=%s).",
                 self.id,
-                self.move_id.id,
-                self.move_id.move_type,
+                self.order_id.id,
+                self.order_id.state,
             )
             return False
         if not self.product_id:
-            _logger.debug("Line %s skipped: no product_id.", self.id)
+            _logger.debug("Sale line %s skipped: no product_id.", self.id)
             return False
         if self.display_type and self.display_type != "product":
             _logger.debug(
-                "Line %s skipped: non-product display line (%s).",
+                "Sale line %s skipped: non-product display line (%s).",
                 self.id,
                 self.display_type,
             )
@@ -108,7 +110,7 @@ class AccountMoveLine(models.Model):
 
         if not config or not config.commission_agent_ids:
             _logger.debug(
-                "Line %s skipped: no auto commission config or empty configured agents for company %s.",
+                "Sale line %s skipped: no auto commission config or empty configured agents for company %s.",
                 self.id,
                 self.company_id.id,
             )
@@ -117,7 +119,7 @@ class AccountMoveLine(models.Model):
         product_agents = self.product_id.commission_agent_ids
         if not product_agents:
             _logger.debug(
-                "Line %s skipped: product %s has no commission agents.",
+                "Sale line %s skipped: product %s has no commission agents.",
                 self.id,
                 self.product_id.id,
             )
@@ -143,7 +145,7 @@ class AccountMoveLine(models.Model):
             [("company_id", "in", target_lines.mapped("company_id").ids)]
         )
         config_by_company = {config.company_id.id: config for config in configs}
-        agent_line_model = self.env["account.invoice.line.agent"]
+        agent_line_model = self.env["sale.order.line.agent"]
 
         for line in target_lines:
             config = config_by_company.get(line.company_id.id)
@@ -163,7 +165,7 @@ class AccountMoveLine(models.Model):
                 )
             if stale_lines:
                 _logger.debug(
-                    "Line %s removing stale auto commission lines: %s",
+                    "Sale line %s removing stale auto commission lines: %s",
                     line.id,
                     stale_lines.ids,
                 )
@@ -184,5 +186,9 @@ class AccountMoveLine(models.Model):
                 to_create.append(vals)
 
             if to_create:
-                _logger.debug("Line %s creating auto commission lines: %s", line.id, to_create)
+                _logger.debug(
+                    "Sale line %s creating auto commission lines: %s",
+                    line.id,
+                    to_create,
+                )
                 agent_line_model.create(to_create)

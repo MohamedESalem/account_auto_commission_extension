@@ -3,7 +3,7 @@
 ## Purpose
 
 This module extends Odoo 18 Community to automatically assign predefined OCA commission
-agents when draft customer invoice lines are created or updated (`account.move.line`).
+agents on draft customer invoice lines and quotation lines.
 
 It is designed to keep commission assignment consistent, auditable, and company-aware without hardcoding users or percentages.
 
@@ -13,6 +13,7 @@ It is designed to keep commission assignment consistent, auditable, and company-
 2. Ensure dependencies are installed:
    - `account`
    - `account_commission_oca` (OCA)
+   - `sale_commission_oca` (OCA)
 3. Update apps list.
 4. Install **Account Auto Commission Extension**.
 
@@ -30,8 +31,12 @@ Notes:
 
 ## How Automation Works
 
-- Hook: `account.move.line.create()` and `account.move.line.write()`.
-- Scope: draft customer invoice/refund lines with products (`move_type in ('out_invoice', 'out_refund')`, `state = draft`).
+- Hooks:
+  - `account.move.line.create()` / `account.move.line.write()`
+  - `sale.order.line.create()` / `sale.order.line.write()`
+- Scope:
+  - Draft customer invoice/refund lines with products
+  - Draft/sent quotation lines with products
 - Behavior:
   - Loads company-specific configured agents from `auto.commission.config`.
   - Intersects them with product agents (`product.template.commission_agent_ids`).
@@ -44,7 +49,7 @@ Commission percentages are not hardcoded and are resolved from existing OCA comm
 ## Safety and Edge Cases
 
 - Multi-company safe: configuration and commission resolution respect `company_id`.
-- Draft-only automation: no changes on posted invoices.
+- Draft invoice + quotation automation: no changes on posted invoices or confirmed sales orders.
 - Idempotent behavior: repeated calls do not duplicate lines.
 - Graceful fallback:
   - If no config exists, it silently skips.
@@ -54,6 +59,7 @@ Commission percentages are not hardcoded and are resolved from existing OCA comm
 
 - The persistent configuration model is writable only by accounting managers.
 - Internal accounting users have read-only access for runtime automation.
+- Sales users have read-only access for quotation runtime automation.
 - A company rule restricts access to configuration records within allowed companies.
 - No privilege escalation, no global invoice record rules, and no direct SQL are used.
 
@@ -66,5 +72,5 @@ Commission percentages are not hardcoded and are resolved from existing OCA comm
 
 ## Known Limitations
 
-- This module assumes OCA `account_commission` provides invoice line agent structures compatible with `agent_ids`.
+- This module assumes OCA `account_commission_oca` and `sale_commission_oca` provide line agent structures compatible with `agent_ids`.
 - If OCA internals are heavily customized, automatic assignment may skip lines and log warnings instead of forcing unsafe writes.

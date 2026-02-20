@@ -238,6 +238,13 @@ class TestAutoCommissionExtension(TransactionCase):
         line._auto_sync_commission_agents(strict=False, skip_manual=True)
         self.assertEqual(set(line.agent_ids.mapped("agent_id").ids), {self.agent_a.id})
 
+    def test_invoice_post_keeps_agents(self):
+        self._set_config(self.agent_a)
+        invoice, line = self._create_invoice(product=self.product_a)
+        self.assertEqual(set(line.agent_ids.mapped("agent_id").ids), {self.agent_a.id})
+        invoice.action_post()
+        self.assertEqual(set(line.agent_ids.mapped("agent_id").ids), {self.agent_a.id})
+
     def test_partner_recompute_does_not_drop_auto_agents(self):
         self._set_config(self.agent_a)
         other_partner = self.env["res.partner"].create({"name": "No Agent Partner"})
@@ -285,6 +292,86 @@ class TestAutoCommissionExtension(TransactionCase):
             }
         )
         line = move.invoice_line_ids[:1]
+        self.assertEqual(set(line.agent_ids.mapped("agent_id").ids), {self.agent_a.id})
+
+    def test_quotation_line_assigns_intersection_only(self):
+        self._set_config(self.agent_a | self.agent_c)
+        order = self.env["sale.order"].create({"partner_id": self.partner.id})
+        line = self.env["sale.order.line"].create(
+            {
+                "order_id": order.id,
+                "name": "Quotation line",
+                "product_id": self.product_ab.id,
+                "product_uom_qty": 1.0,
+                "price_unit": 100.0,
+            }
+        )
+        self.assertEqual(set(line.agent_ids.mapped("agent_id").ids), {self.agent_a.id})
+
+    def test_quotation_write_product_assigns_agents(self):
+        self._set_config(self.agent_a)
+        order = self.env["sale.order"].create({"partner_id": self.partner.id})
+        line = self.env["sale.order.line"].create(
+            {
+                "order_id": order.id,
+                "name": "No product yet",
+                "product_uom_qty": 1.0,
+                "price_unit": 100.0,
+            }
+        )
+        self.assertFalse(line.agent_ids)
+        line.write({"product_id": self.product_a.id})
+        self.assertEqual(set(line.agent_ids.mapped("agent_id").ids), {self.agent_a.id})
+
+    def test_quotation_confirm_keeps_agents(self):
+        self._set_config(self.agent_a)
+        order = self.env["sale.order"].create({"partner_id": self.partner.id})
+        line = self.env["sale.order.line"].create(
+            {
+                "order_id": order.id,
+                "name": "Confirm keep line",
+                "product_id": self.product_a.id,
+                "product_uom_qty": 1.0,
+                "price_unit": 100.0,
+            }
+        )
+        self.assertEqual(set(line.agent_ids.mapped("agent_id").ids), {self.agent_a.id})
+        order.action_confirm()
+        self.assertEqual(set(line.agent_ids.mapped("agent_id").ids), {self.agent_a.id})
+
+    def test_quotation_sale_user_runtime_no_sudo_needed(self):
+        self._set_config(self.agent_a)
+        sale_user = self.env["res.users"].with_context(no_reset_password=True).create(
+            {
+                "name": "Auto Commission Salesman",
+                "login": "auto_commission_sale_user",
+                "email": "auto_commission_sale_user@example.com",
+                "company_id": self.company.id,
+                "company_ids": [(6, 0, [self.company.id])],
+                "groups_id": [
+                    (
+                        6,
+                        0,
+                        [
+                            self.env.ref("base.group_user").id,
+                            self.env.ref("sales_team.group_sale_salesman").id,
+                        ],
+                    )
+                ],
+            }
+        )
+        sale_order = self.env["sale.order"].with_user(sale_user).with_company(self.company).create(
+            {"partner_id": self.partner.id}
+        )
+        line = self.env["sale.order.line"].with_user(sale_user).with_company(self.company).create(
+            {
+                "order_id": sale_order.id,
+                "name": "Sale user line",
+                "product_id": self.product_a.id,
+                "product_uom_qty": 1.0,
+                "price_unit": 100.0,
+            }
+        )
         self.assertEqual(set(line.agent_ids.mapped("agent_id").ids), {self.agent_a.id})
 
     def test_multi_company_config_isolated(self):
