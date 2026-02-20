@@ -34,6 +34,14 @@ class AutoCommissionConfig(models.Model):
             "draft quotation/invoice lines."
         ),
     )
+    auto_assign_agents_to_new_products = fields.Boolean(
+        string="Auto Assign Agents To New Products",
+        default=False,
+        help=(
+            "If enabled, every new product will inherit all agents selected in "
+            "automatic commission settings."
+        ),
+    )
 
     _sql_constraints = [
         (
@@ -107,6 +115,14 @@ class ResConfigSettings(models.TransientModel):
         domain="[('agent', '=', True)]",
         help="Agents allowed for automatic assignment on draft quotation/invoice lines.",
     )
+    auto_assign_agents_to_new_products = fields.Boolean(
+        string="Automatically assign selected auto-commission agents to all new products",
+        help=(
+            "If enabled, every new product will inherit all agents selected in "
+            "auto-commission settings."
+        ),
+        default=False,
+    )
 
     @api.model
     def get_values(self):
@@ -115,7 +131,10 @@ class ResConfigSettings(models.TransientModel):
         company = self.env.company
         config = self.env["auto.commission.config"].get_company_config(company)
         res.update(
-            auto_commission_agent_ids=[(6, 0, config.commission_agent_ids.ids if config else [])]
+            auto_commission_agent_ids=[(6, 0, config.commission_agent_ids.ids if config else [])],
+            auto_assign_agents_to_new_products=(
+                config.auto_assign_agents_to_new_products if config else False
+            ),
         )
         return res
 
@@ -131,11 +150,17 @@ class ResConfigSettings(models.TransientModel):
             config = config_model.get_company_config(company)
             if not config:
                 config = config_model.create({"company_id": company.id})
-            config.commission_agent_ids = [(6, 0, settings.auto_commission_agent_ids.ids)]
+            config.write(
+                {
+                    "commission_agent_ids": [(6, 0, settings.auto_commission_agent_ids.ids)],
+                    "auto_assign_agents_to_new_products": settings.auto_assign_agents_to_new_products,
+                }
+            )
             _logger.debug(
-                "Updated automatic commission agents for company %s: %s",
+                "Updated automatic commission settings for company %s: agents=%s auto_assign_new_products=%s",
                 company.id,
                 settings.auto_commission_agent_ids.ids,
+                settings.auto_assign_agents_to_new_products,
             )
 
     def user_has_groups(self, groups):

@@ -16,6 +16,11 @@
                                widget="many2many_tags"
                                options="{'no_create_edit': True, 'no_open': True}"/>
                     </setting>
+                    <setting id="account_auto_commission_assign_new_products"
+                             string="Automatically assign selected auto-commission agents to all new products"
+                             help="If enabled, every new product will inherit all agents selected in auto-commission settings.">
+                        <field name="auto_assign_agents_to_new_products"/>
+                    </setting>
                 </block>
             </xpath>
         </field>

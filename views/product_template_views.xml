@@ -13,6 +13,13 @@
                         widget="many2many_tags"
                         options="{'no_create_edit': True}"
                     />
+                    <button
+                        name="action_apply_auto_commission_agents"
+                        type="object"
+                        string="Apply Auto-Commission Agents"
+                        class="oe_link"
+                        groups="account.group_account_manager"
+                    />
                 </div>
             </xpath>
         </field>

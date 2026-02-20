@@ -2,7 +2,7 @@
 {
     "name": "Account Auto Commission Extension",
     "summary": "Automatically assign configured OCA commission agents on draft invoice and quotation lines",
-    "version": "18.0.3.0.0",
+    "version": "18.0.4.0.0",
     "category": "Accounting",
     "author": "Essam Salem Law Firm",
     "license": "LGPL-3",

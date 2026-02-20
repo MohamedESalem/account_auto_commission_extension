@@ -21,8 +21,9 @@ It is designed to keep commission assignment consistent, auditable, and company-
 
 1. Go to **Accounting > Configuration > Settings**.
 2. In **Automatic Commission Assignment**, choose **Automatic Commission Agents**.
-3. Save.
-4. On each product, define **Commission Agents** that are allowed for that product.
+3. Optionally enable **Automatically assign selected auto-commission agents to all new products**.
+4. Save.
+5. On each product, define **Commission Agents** that are allowed for that product (or use the automatic product option above).
 
 Notes:
 - Only records already configured as OCA commission agents are selectable.
@@ -43,6 +44,16 @@ Notes:
   - Adds only missing agent entries via OCA helper methods.
   - Never duplicates existing agent lines.
   - Preserves manual commission edits on write operations.
+
+## Product Auto-Assignment Option
+
+- If **Automatically assign selected auto-commission agents to all new products** is enabled:
+  - Every newly created product receives missing agents from company auto-commission settings.
+  - Existing product agents are preserved (only missing ones are added).
+- If disabled:
+  - New products are not modified automatically.
+  - You can still assign manually on product form.
+  - Accounting managers can use **Apply Auto-Commission Agents** button on product form to add missing configured agents.
 
 Commission percentages are not hardcoded and are resolved from existing OCA commission configuration attached to each selected agent.
 

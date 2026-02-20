@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from odoo.exceptions import AccessError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
@@ -93,13 +94,18 @@ class TestAutoCommissionExtension(TransactionCase):
             }
         )
 
-    def _set_config(self, agents, company=None):
+    def _set_config(self, agents, company=None, auto_assign_new_products=False):
         company = company or self.company
         config_model = self.env["auto.commission.config"]
         config = config_model.search([("company_id", "=", company.id)], limit=1)
         if not config:
             config = config_model.create({"company_id": company.id})
-        config.commission_agent_ids = [(6, 0, agents.ids)]
+        config.write(
+            {
+                "commission_agent_ids": [(6, 0, agents.ids)],
+                "auto_assign_agents_to_new_products": auto_assign_new_products,
+            }
+        )
         return config
 
     def _create_invoice(self, product=None, user=None):
@@ -406,3 +412,98 @@ class TestAutoCommissionExtension(TransactionCase):
 
         _, line = self._create_invoice(product=self.product_a, user=account_user)
         self.assertEqual(set(line.agent_ids.mapped("agent_id").ids), {self.agent_a.id})
+
+    def test_new_product_no_auto_assign_when_disabled(self):
+        self._set_config(self.agent_a | self.agent_c, auto_assign_new_products=False)
+        template = self.env["product.template"].create(
+            {
+                "name": "No Auto Assign Template",
+                "type": "service",
+            }
+        )
+        self.assertFalse(template.commission_agent_ids)
+
+    def test_new_product_inherits_agents_when_enabled(self):
+        self._set_config(self.agent_a | self.agent_c, auto_assign_new_products=True)
+        template = self.env["product.template"].create(
+            {
+                "name": "Auto Assign Template",
+                "type": "service",
+            }
+        )
+        self.assertEqual(
+            set(template.commission_agent_ids.ids),
+            {self.agent_a.id, self.agent_c.id},
+        )
+
+    def test_new_product_adds_missing_without_overwrite(self):
+        self._set_config(self.agent_a | self.agent_c, auto_assign_new_products=True)
+        template = self.env["product.template"].create(
+            {
+                "name": "Auto Assign With Existing Agent",
+                "type": "service",
+                "commission_agent_ids": [(6, 0, [self.agent_b.id])],
+            }
+        )
+        self.assertEqual(
+            set(template.commission_agent_ids.ids),
+            {self.agent_a.id, self.agent_b.id, self.agent_c.id},
+        )
+
+    def test_toggle_enable_does_not_update_existing_products(self):
+        self._set_config(self.agent_a, auto_assign_new_products=False)
+        template = self.env["product.template"].create(
+            {
+                "name": "Existing Template",
+                "type": "service",
+            }
+        )
+        self.assertFalse(template.commission_agent_ids)
+
+        self._set_config(self.agent_a, auto_assign_new_products=True)
+        self.assertFalse(template.commission_agent_ids)
+
+    def test_apply_auto_commission_agents_button_adds_missing(self):
+        self._set_config(self.agent_a | self.agent_c, auto_assign_new_products=False)
+        template = self.env["product.template"].create(
+            {
+                "name": "Apply Button Template",
+                "type": "service",
+                "commission_agent_ids": [(6, 0, [self.agent_b.id])],
+            }
+        )
+        template.action_apply_auto_commission_agents()
+        self.assertEqual(
+            set(template.commission_agent_ids.ids),
+            {self.agent_a.id, self.agent_b.id, self.agent_c.id},
+        )
+
+    def test_apply_auto_commission_agents_button_access_control(self):
+        self._set_config(self.agent_a | self.agent_c, auto_assign_new_products=True)
+        template = self.env["product.template"].create(
+            {
+                "name": "Apply Button ACL Template",
+                "type": "service",
+            }
+        )
+        sale_user = self.env["res.users"].with_context(no_reset_password=True).create(
+            {
+                "name": "Auto Commission Sales User ACL",
+                "login": "auto_commission_sale_user_acl",
+                "email": "auto_commission_sale_user_acl@example.com",
+                "company_id": self.company.id,
+                "company_ids": [(6, 0, [self.company.id])],
+                "groups_id": [
+                    (
+                        6,
+                        0,
+                        [
+                            self.env.ref("base.group_user").id,
+                            self.env.ref("sales_team.group_sale_salesman").id,
+                        ],
+                    )
+                ],
+            }
+        )
+        with self.assertRaises(AccessError):
+            template.with_user(sale_user).action_apply_auto_commission_agents()
