@@ -1,0 +1,8 @@
+how to set Automatic Commission Assignment to an agent?
+
+1- go to "settings"
+2- go to "billing"
+3- scroll down to "Automatic Commission Assignment"
+4- choose the agents you want to set auto commissions to
+5- "enable" the checkbox of "Automatic Commission Agents" (MANDATORY)
+6- add the agents to all the products/services (MANDATORY)
